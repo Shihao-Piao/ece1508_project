@@ -5,13 +5,60 @@ import itertools
 import os
 import torch
 import torch.nn as nn
-from model.loss import Loss
 #from model.buffer import Buffer
 #from utils.model_utils import print_network
 from collections import OrderedDict
 from utils import *
 from model.block import *
 
+class Loss(nn.Module):
+    """
+    Initializes a customizable Loss class for training models.
+    """
+
+    def __init__(self,loss_type = 'mse',target_real_label = 1.0,target_fake_label = 0.0):
+        """
+        Constructs the CustomLoss class with specified parameters.
+
+        Args:
+            loss_type (str): The type of loss function to use, defaults to 'mse'.
+            target_real_label (float): The label value for real data, defaults to 1.0.
+            target_fake_label (float): The label value for fake data, defaults to 0.0.
+        """
+        super(Loss, self).__init__()
+        self.register_buffer('real_label', torch.tensor(target_real_label))
+        self.register_buffer('fake_label', torch.tensor(target_fake_label))
+        self.loss_type = loss_type
+        self.loss = nn.MSELoss()
+
+    def prepare_labels(self, predictions, is_real):
+        """
+        Generates the appropriate labels for the loss calculation.
+
+        Args:
+            predictions (torch.Tensor): The predictions made by the model.
+            is_real (bool): Flag to indicate whether the labels should be real or fake.
+
+        Returns:
+            torch.Tensor: A tensor of labels matching the predictions' shape.
+        """
+        if is_real:
+            return self.real_label.expand_as(predictions)
+        return self.fake_label.expand_as(predictions)
+
+    def __call__(self, predictions, is_real):
+        """
+        Calculates and returns the loss when the instance is called.
+
+        Args:
+            predictions (torch.Tensor): The predictions made by the model.
+            is_real (bool): Specifies whether to use real or fake labels for loss calculation.
+
+        Returns:
+            torch.Tensor: The calculated loss value.
+        """
+        labels = self.prepare_labels(predictions, is_real)
+        return self.loss(predictions, labels)
 
 class CycleGAN(nn.Module):
     def __init__(self, config: dict):
@@ -100,7 +147,7 @@ class CycleGAN(nn.Module):
         self.recon_X = self.genF(self.fake_Y)  # Attempt to reconstruct X -> G(X) -> F(G(X))
         self.recon_Y = self.genG(self.fake_X)  # Attempt to reconstruct Y -> F(Y) -> G(F(Y))
 
-    def backward_D(self, discriminator: nn.Module, real: torch.Tensor, fake: torch.Tensor, factor: float = 0.5):
+    def backward_D(self, discriminator, real, fake, factor = 0.5):
         """
         Computes the loss for a given discriminator, combining the losses
         from real and fake images and performing a backward pass.
@@ -206,7 +253,7 @@ class CycleGAN(nn.Module):
         self.backward_D_Y()  # Compute gradients for D_Y
         self.optim_D.step()  # Apply gradients and update discriminator weights
 
-    def set_requires_grad(self, nets, requires_grad: bool):
+    def set_requires_grad(self, nets, requires_grad):
         """
         Sets the .requires_grad attribute of the parameters in the given networks.
         Parameters:
@@ -241,21 +288,21 @@ class CycleGAN(nn.Module):
         for scheduler in self.schedulers:
             scheduler.step()
 
-    def save_networks(self, epoch: str = 'latest'):
+    def save_networks(self, epoch = 'latest'):
         """
         Saves each network's state dictionary for the specified epoch.
 
         Parameters:
             epoch (str): Identifier for the save epoch, defaults to 'latest'.
         """
-        for model_name in self.model_names:
-            filename = f'{epoch}_{model_name}.pth'
-            save_path = os.path.join(self.save_dir, filename)
-            net = getattr(self, model_name, None)
-            if net:
-                torch.save(net.state_dict(), save_path)
+        for name in self.model_names:
+            file_name = f'{epoch}_{name}.pth'
+            destination = os.path.join(self.save_dir, file_name)
+            model = getattr(self, name, None)
+            if model:
+                torch.save(model.state_dict(), destination)
 
-    def load_networks(self, epoch: str = 'latest'):
+    def load_networks(self, epoch = 'latest'):
         """
         Loads network weights from the specified epoch.
 
@@ -312,54 +359,3 @@ class CycleGAN(nn.Module):
             total_loss = self.loss_G_total
         )
 
-'''
-config = {
-    "dataset": {
-        "batch_size": 1,
-        "in_order": False,
-        "scale_size": 286,
-        "crop_size": 256,
-        "in_channels": 3,
-        "out_channels": 3,
-        "num_workers": 4
-    },
-    "model": {
-        "generator": {
-            "num_filters": 64,
-            "num_blocks": 9,
-            "num_sampling": 2,
-            "use_dropout": False,
-            "init_scale": 0.02
-        },
-        "discriminator": {
-            "num_filters": 64,
-            "num_conv_layers": 3,
-            "ker_size": 4,
-            "padding": 1,
-            "init_scale": 0.02
-        }
-    },
-    "train": {
-        "save_epoch_freq": 25,
-        "warmup_epochs": 70,
-        "decay_epochs": 30,
-        "beta1": 0.5,
-        "lr": 0.0002,
-        "buffer_size": 50,
-        "loss": {
-            "loss_type": 'mse',
-            "lambda_scaling": 0.5,
-            "lambda_X": 10.0,
-            "lambda_Y": 10.0
-        }
-    },
-    "checkpoints_dir": "../checkpoints",
-    "model_name": "my_CycleGAN",
-    "use_gpu": False, # change to True
-    "to_train": True,
-    "load_epoch":'latest',
-'continue_train':False
-}
-
-'''
-#model = CycleGAN(config=config)

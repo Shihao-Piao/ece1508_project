@@ -52,5 +52,5 @@ if __name__ == '__main__':
         out = model.test()  # Acquiring the test output
 
         # Construct the output file name based on the input image path
-        file_name = os.path.splitext(os.path.basename(data['X_paths'][0]))[0]  # Assuming 'X_paths' contains the path(s)
+        file_name = os.path.splitext(os.path.basename(data['X_paths'][0]))[0]
         save_outs(out, os.path.join(result_dir, file_name), config.get('save_separate', False))
