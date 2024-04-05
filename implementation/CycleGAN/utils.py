@@ -180,8 +180,8 @@ def save_outs(outs, out_dir, save_separate=False, extension='jpg', save=True):
 
     for img_tensor in outs.values():
         img = img_tensor.cpu().float().numpy()
-        img = np.transpose(img, (0, 2, 3, 1))  # Convert from NCHW to NHWC
-        img = np.tile(img, (1, 1, 1, 3)) if img.shape[-1] == 1 else img  # Grayscale to RGB
+        img = np.transpose(img, (1, 2, 0))   # Convert from NCHW to NHWC
+        img = np.repeat(img, 3, axis=-1) if img.shape[-1] == 1 else img # Grayscale to RGB
         img = ((img + 1) * 0.5 * 255).clip(0, 255).astype(np.uint8)
         images.append(img)
 

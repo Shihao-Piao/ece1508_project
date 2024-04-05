@@ -54,6 +54,4 @@ class Loss(nn.Module):
             torch.Tensor: The calculated loss value.
         """
         labels = self.prepare_labels(predictions, is_real)
-        if predictions.shape[0] == 0 and self.loss_type == 'mse':
-            raise ZeroDivisionError("MSE loss cannot be computed with an empty predictions tensor.")
         return self.loss(predictions, labels)
