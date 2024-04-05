@@ -5,8 +5,6 @@ import itertools
 import os
 import torch
 import torch.nn as nn
-#from model.buffer import Buffer
-#from utils.model_utils import print_network
 from collections import OrderedDict
 from utils import *
 from model.block import *
@@ -29,7 +27,10 @@ class Loss(nn.Module):
         self.register_buffer('real_label', torch.tensor(target_real_label))
         self.register_buffer('fake_label', torch.tensor(target_fake_label))
         self.loss_type = loss_type
-        self.loss = nn.MSELoss()
+        if self.loss_type == 'mse':
+            self.loss = nn.MSELoss()
+        else:
+            print('need loss type')
 
     def prepare_labels(self, predictions, is_real):
         """
@@ -213,12 +214,8 @@ class CycleGAN(nn.Module):
         lambda_identity = self.config['train']['loss'].get('lambda_scaling', 0)
 
         # Identity Loss
-        self.identity_loss_G = 0
-        if lambda_identity > 0:
-            self.identity_loss_G = (
-                                           self.loss_identity(self.genG(self.real_Y), self.real_Y) * lambda_Y +
-                                           self.loss_identity(self.genF(self.real_X), self.real_X) * lambda_X
-                                   ) * lambda_identity
+        self.identity_loss_G = (self.loss_identity(self.genG(self.real_Y), self.real_Y) * lambda_Y +
+                        self.loss_identity(self.genF(self.real_X), self.real_X) * lambda_X) * lambda_identity
 
         # Adversarial Loss (G tries to fool D into thinking the generated images are real)
         self.loss_G_adv_X = self.loss_func(self.netD_X(self.fake_X), True)
@@ -269,16 +266,10 @@ class CycleGAN(nn.Module):
         Prepares the model for training or evaluation based on the configuration.
         """
         if self.to_train:
-            self.setup_schedulers(maxsize)
+            self.schedulers = [init_linear_lr(optimizer,maxsize = maxsize, **self.config['train']) for optimizer in self.optimizers]
         if not self.to_train or self.config['continue_train']:
             self.load_networks(self.config['load_epoch'])
         #print_network(self, verbose=self.opt.verbose)
-
-    def setup_schedulers(self,maxsize):
-        """
-        Initializes learning rate schedulers for each optimizer.
-        """
-        self.schedulers = [init_linear_lr(optimizer,maxsize = maxsize, **self.config['train']) for optimizer in self.optimizers]
 
 
     def update_schedulers(self):
